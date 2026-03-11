@@ -1,65 +1,76 @@
-# --- Stage 1: Dependencies ---
-# ติดตั้ง Library ที่จำเป็น (npm modules)
+# ---------- Stage 1 : Dependencies ----------
 FROM node:24-alpine AS deps
+
 WORKDIR /app
 
-# ติดตั้ง libc6-compat สำหรับเคสที่ต้องใช้ Native Modules ของ Node.js
+# สำหรับบาง native module
 RUN apk add --no-cache libc6-compat
 
-# Copy ไฟล์ระบุเวอร์ชัน Library
+# copy package files
 COPY package.json package-lock.json ./
 
-# ใช้ npm ci แทน install เพื่อความเสถียรและแม่นยำตาม lockfile
-RUN npm ci && npm cache clean --force
+# install dependencies
+RUN npm ci
 
-# --- Stage 2: Builder ---
-# ทำการ Compile และ Build โปรเจกต์
+# ---------- Stage 2 : Builder ----------
 FROM node:24-alpine AS builder
+
 WORKDIR /app
 
-# ดึง node_modules จาก Stage แรกมาใช้
+# copy node_modules จาก stage deps
 COPY --from=deps /app/node_modules ./node_modules
+
+# copy source code
 COPY . .
 
-# Generate Prisma Client (v7 ใช้ driver adapter)
+# copy env file (สำคัญมาก)
+COPY .env .env
+
+# generate prisma client
 RUN npx prisma generate
 
-# ปิดการส่งข้อมูลสถิติ และตั้งค่าเป็น Production
+# ปิด telemetry
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# สั่ง Build โปรเจกต์ (ผลลัพธ์จะได้โฟลเดอร์ .next/standalone)
+# build nextjs
 RUN npm run build
 
-# --- Stage 3: Runner ---
-# Stage สุดท้ายที่จะนำไปรันจริง (เน้นความเบาและปลอดภัย)
+# ---------- Stage 3 : Runner ----------
 FROM node:24-alpine AS runner
+
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# สร้าง User ใหม่ (non-root) เพื่อไม่ให้รันแอปด้วยสิทธิ์สูงสุด (ป้องกันการเจาะระบบ)
+# สร้าง user สำหรับรันแอป
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# คัดลอกเฉพาะไฟล์ที่จำเป็นต้องใช้ตอนรัน (ตัด Source Code และ Cache ทิ้ง)
+# copy public
 COPY --from=builder /app/public ./public
+
+# copy next standalone server
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+
+# copy static files
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# คัดลอกPrisma v7 generated client และschema
-COPY --from=builder --chown=nextjs:nodejs /app/generated ./generated
+# copy prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 
-# เปลี่ยนไปใช้ User ที่สร้างขึ้น
+# copy generated prisma client
+COPY --from=builder --chown=nextjs:nodejs /app/generated ./generated
+
+# ใช้ user ปลอดภัย
 USER nextjs
 
-# กำหนด Port และ Host
+# เปิด port
 EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-# รันแอปผ่าน server.js ที่ได้จาก standalone mode (ประสิทธิภาพดีกว่า npm start)
+# run server
 CMD ["node", "server.js"]
