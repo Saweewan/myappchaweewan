@@ -1,13 +1,26 @@
-import { PrismaClient } from '@prisma/client'
+import { NextRequest, NextResponse } from "next/server"
+import { PrismaClient } from "@prisma/client"
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined
+const prisma = new PrismaClient()
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: {
+        id: Number(params.id),
+      },
+    })
+
+    if (!user) {
+      return NextResponse.json({ message: "User not found" }, { status: 404 })
+    }
+
+    return NextResponse.json(user)
+
+  } catch (error) {
+    return NextResponse.json({ error: "Server error" }, { status: 500 })
+  }
 }
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ["query", "error", "warn"],
-  })
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
