@@ -3,25 +3,17 @@ import { PrismaClient } from "@prisma/client"
 
 const prisma = new PrismaClient()
 
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest) {
   try {
 
-    const { id } = await context.params
+    const users = await prisma.user.findMany()
 
-    const user = await prisma.user.findUnique({
-      where: { id: Number(id) }
-    })
-
-    if (!user) {
-      return NextResponse.json({ message: "User not found" }, { status: 404 })
-    }
-
-    return NextResponse.json(user)
+    return NextResponse.json(users)
 
   } catch (error) {
-    return NextResponse.json({ error: "Server error" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Server error" },
+      { status: 500 }
+    )
   }
 }
