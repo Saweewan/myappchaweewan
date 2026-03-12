@@ -5,13 +5,15 @@ const prisma = new PrismaClient()
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+
+    const { id } = await context.params
+    const userId = parseInt(id)
 
     const user = await prisma.user.findUnique({
-      where: { id }
+      where: { id: userId }
     })
 
     if (!user) {
