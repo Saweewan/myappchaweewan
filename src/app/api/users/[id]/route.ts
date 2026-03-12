@@ -1,123 +1,13 @@
-// app/api/users/[id]/route.ts
-import { NextRequest, NextResponse } from 'next/server'
-import prisma from '@/lib/prisma'
+import { PrismaClient } from '@prisma/client'
 
-interface RouteContext {
-  params: Promise<{ id: string }>
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined
 }
 
-/**
- * 1. GET: ดึงข้อมูลผู้ใช้รายบุคคล
- */
-export async function GET(request: NextRequest, context: RouteContext) {
-  try {
-    const { id } = await context.params
-    const userId = parseInt(id)
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: ["query", "error", "warn"],
+  })
 
-    if (isNaN(userId)) {
-      return NextResponse.json({ success: false, error: 'Invalid user ID' }, { status: 400 })
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        createdAt: true,
-      },
-    })
-
-    if (!user) {
-      return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ success: true, data: user })
-  } catch (error) {
-    console.error('Error fetching user:', error)
-    return NextResponse.json({ success: false, error: 'Failed to fetch user' }, { status: 500 })
-  }
-}
-
-/**
- * 2. PATCH: อัปเดตข้อมูลผู้ใช้
- */
-export async function PATCH(request: NextRequest, context: RouteContext) {
-  try {
-    const { id } = await context.params
-    const userId = parseInt(id)
-
-    if (isNaN(userId)) {
-      return NextResponse.json({ success: false, error: 'Invalid user ID' }, { status: 400 })
-    }
-
-    const body = await request.json()
-    const { name, role } = body
-
-    const updateData: { name?: string; role?: string } = {}
-
-    if (name !== undefined) updateData.name = name
-    if (role !== undefined) updateData.role = role
-
-    if (Object.keys(updateData).length === 0) {
-      return NextResponse.json({ success: false, error: 'No fields to update' }, { status: 400 })
-    }
-
-    const user = await prisma.user.update({
-      where: { id: userId },
-      data: updateData,
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-      },
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: user,
-      message: 'User updated successfully',
-    })
-  } catch (error: any) {
-    console.error('Error updating user:', error)
-
-    if (error.code === 'P2025') {
-      return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ success: false, error: 'Failed to update user' }, { status: 500 })
-  }
-}
-
-/**
- * 3. DELETE: ลบข้อมูลผู้ใช้
- */
-export async function DELETE(request: NextRequest, context: RouteContext) {
-  try {
-    const { id } = await context.params
-    const userId = parseInt(id)
-
-    if (isNaN(userId)) {
-      return NextResponse.json({ success: false, error: 'Invalid user ID' }, { status: 400 })
-    }
-
-    await prisma.user.delete({
-      where: { id: userId },
-    })
-
-    return NextResponse.json({
-      success: true,
-      message: 'User deleted successfully',
-    })
-  } catch (error: any) {
-    console.error('Error deleting user:', error)
-
-    if (error.code === 'P2025') {
-      return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 })
-    }
-
-    return NextResponse.json({ success: false, error: 'Failed to delete user' }, { status: 500 })
-  }
-}
+if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma
