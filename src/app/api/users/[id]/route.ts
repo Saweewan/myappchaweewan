@@ -10,19 +10,25 @@ export async function GET(
   try {
 
     const { id } = await context.params
-    const userId = parseInt(id)
+    const userId = Number(id)
 
     const user = await prisma.user.findUnique({
       where: { id: userId }
     })
 
     if (!user) {
-      return NextResponse.json({ message: "User not found" }, { status: 404 })
+      return NextResponse.json(
+        { message: "User not found" },
+        { status: 404 }
+      )
     }
 
     return NextResponse.json(user)
 
   } catch (error) {
-    return NextResponse.json({ error: "Server error" }, { status: 500 })
+    return NextResponse.json(
+      { error: "Server error" },
+      { status: 500 }
+    )
   }
 }
